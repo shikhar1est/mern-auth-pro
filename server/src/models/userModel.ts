@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 
 //A schema is a blueprint for the structure of documents in a MongoDB collection.
-//  It defines the fields, their data types, and any validation rules or constraints that should be applied to the data.
+//It defines the fields, their data types, and any validation rules or constraints that should be applied to the data.
 const userSchema=new mongoose.Schema({ 
     name:{type:String, required:true},
     email:{type:String,required:true, unique:true},

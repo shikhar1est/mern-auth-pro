@@ -37,8 +37,54 @@ export const register=async(req:Request,res:Response)=>{
         'none':'strict', //This option controls how cookies are sent with cross-site requests.
         maxAge: 7 * 24 * 60 * 60 * 1000
        })
+       return res.json({success:true,response:'User registered successfully'});
     }catch(error: any){
         res.json({success:false,message: error.message});
     }
+}
 
+export const login=async(req:Request,res:Response)=>{
+    const {email,password}=req.body
+    if(!email || !password){
+        res.json({success:false,response:'All fields are required'})
+    }
+    try{
+         const user=await userModel.findOne({email})
+         if(!user){
+            return res.json({success:false,response:'User does not exist'})
+         }
+         const isPasswordValid=await bcrypt.compare(password,user.password)
+         if(!isPasswordValid){
+            return res.json({success:false,response:'Invalid password'})
+         }
+         const secretKey=process.env.JWT_SECRET;
+         if(!secretKey){
+        return res.json({success:false,response:'JWT secret key is not defined'}); 
+       }
+       const token=jwt.sign({id:user._id},secretKey,{expiresIn:'1d'}); 
+       res.cookie('token',token,{ 
+        httpOnly:true,
+        secure:process.env.NODE_ENV==='production',
+        sameSite:process.env.NODE_ENV==='production'?
+        'none':'strict', 
+        maxAge: 7 * 24 * 60 * 60 * 1000
+       })
+       return res.json({success:true,response:'User logged in successfully'});
+    }catch(error: any){
+        res.json({success:false,message: error.message});
+    }
+}
+
+export const logout=async(req:Request,res:Response)=>{
+    try{
+        res.clearCookie('token',{
+            httpOnly:true,
+        secure:process.env.NODE_ENV==='production',
+        sameSite:process.env.NODE_ENV==='production'?
+        'none':'strict', 
+        })
+        return res.json({success:true,response:'Userlogged out successfully'})
+    }catch(error: any){
+        res.json({success:false,message:error.message})
+    }
 }
