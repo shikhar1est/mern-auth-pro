@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import userModel from '../models/userModel';
+import transporter from '../config/nodemailer';
 
 
 export const register=async(req:Request,res:Response)=>{
@@ -37,6 +38,16 @@ export const register=async(req:Request,res:Response)=>{
         'none':'strict', //This option controls how cookies are sent with cross-site requests.
         maxAge: 7 * 24 * 60 * 60 * 1000
        })
+
+       //Welcome email to the user after successful registration
+       const mailOptions={
+        from:process.env.SENDER_EMAIL,
+        to:email,
+        subject:'Welcome to our app',
+        text:'Hello ${name}, Thank you for registering with our app. Your account with email ${email} has been successfully created.'
+       }
+       await transporter.sendMail(mailOptions)
+
        return res.json({success:true,response:'User registered successfully'});
     }catch(error: any){
         res.json({success:false,message: error.message});
@@ -85,6 +96,57 @@ export const logout=async(req:Request,res:Response)=>{
         })
         return res.json({success:true,response:'Userlogged out successfully'})
     }catch(error: any){
+        res.json({success:false,message:error.message})
+    }
+}
+
+export const sendVerificationOTP=async(req:Request,res:Response)=>{
+    try{
+        const {userId}=req.body
+        const user=await userModel.findById(userId)
+        if(user.isAccountVerified){
+            return res.json({success:false,response:'Account already verified'})
+        }
+        const otp=String(Math.floor(10000+Math.random()*90000))
+        user.verifyOTP=otp
+        user.verifyOTPExpiry=Date.now()+24*60*60*1000
+        await user.save()
+
+        const mailOptions={
+            from:process.env.SENDER_EMAIL,
+            to:user.email,
+            subject:'OTP Verification',
+            text:'Your OTP for account verification is ${otp}. It will expire in 24 hours.'
+        }
+        transporter.sendMail(mailOptions)
+        return res.json({success:true,response:'OTP sent to your email'})
+    }catch(error: any){
+        res.json({success:false,message:error.message})
+    }
+}
+
+export const verifyEmail=async(req:Request,res:Response)=>{
+    const {userId,otp}=req.body
+    if(!userId || !otp){
+        return res.json({success:false, response:'User ID and OTP are required'})
+    }
+    try{
+        const user=await userModel.findById(userId)
+        if(!user){
+            return res.json({success:false,response:'User not found'})
+        }
+        if(user.verifyOTP==='' || user.verifyOTP!==otp){
+            return res.json({success:false,response:'Invalid OTP'})
+        }
+        if(user.verifyOTPExpiry<Date.now()){
+            return res.json({success:false,response:'OTP has expired'})
+        }
+        user.isAccountVerified=true,
+        user.verifyOTP='',
+        user.verifyOTPExpiry=0
+        await user.save()
+        return res.json({success:true,response:'Email verified successfully'})
+    }catch(error:any){
         res.json({success:false,message:error.message})
     }
 }
